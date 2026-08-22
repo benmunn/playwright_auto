@@ -16,6 +16,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter as L
 
+from .blurbs import BLURBS
 from .classify import BY_CODE, RULES
 
 Q = lambda s: f'"{s}"' if s else "(blank)"
@@ -104,8 +105,38 @@ def _detail_sheet(wb, tab: str, heading: str, items: list[dict]) -> None:
     det.freeze_panes = "A5"
 
 
+def _example(items: list[dict]) -> tuple[str, str]:
+    """A short instance to illustrate the group, when none is written by hand.
+
+    Shortest wins: two long sentences that differ by one word make the reader hunt for
+    the difference, which is the opposite of what an example is for.
+    """
+    usable = [f for f in items if f["fix"] and len(f["current"]) > 12]
+    pick = min(usable or items, key=lambda f: len(f["current"]))
+    return pick["current"], pick["fix"]
+
+
+def group_feedback(key, title: str, items: list[dict]) -> str:
+    """The Feedback cell for one by-type group: what the error is, then one example."""
+    if key in BLURBS:
+        desc, bullets, current, suggested = BLURBS[key]
+    else:
+        kinds = sorted({BY_CODE[f["kind"]][4] for f in items})
+        desc, bullets = kinds[0], kinds[1:]
+        current, suggested = _example(items)
+    lines = [f"[{items[0]['phase']}]", f"{items[0]['activity']} - {title}",
+             "Link to sheet: ", "", desc]
+    lines += [f"- {b}" for b in bullets]
+    lines += ["", "Example:", f"- current: {current}", f"- suggested: {suggested}"]
+    return "\n".join(lines)
+
+
 def _summary(wb, title: str, entries) -> None:
-    """entries: (label, extra Feedback line, tab name, items)."""
+    """entries: (label, extra Feedback line, tab name, items, group key or None).
+
+    A group key means the row gets the by-type Feedback layout; None keeps the older
+    one, which the recurring view still uses.
+    """
     ws = wb.active
     ws.title = title
     _legend(ws)
@@ -114,7 +145,7 @@ def _summary(wb, title: str, entries) -> None:
         cell.font, cell.fill, cell.alignment = Font(bold=True), HDR_FILL, TOP
         ws.column_dimensions[L(c)].width = SUM_W[c - 1]
     ws.freeze_panes = "A6"
-    for i, (label, extra, tab, items) in enumerate(entries):
+    for i, (label, extra, tab, items, key) in enumerate(entries):
         r = 6 + i
         ex = max(items, key=lambda f: len(f["fix"]))
         books = sorted({(f["book_id"], f["book"]) for f in items},
@@ -122,14 +153,15 @@ def _summary(wb, title: str, entries) -> None:
         sources = sorted({f.get("source", "AI") for f in items})
         ws.cell(r, 6, label).alignment = TOP
         ws.cell(r, 7, items[0]["activity"]).alignment = TOP
-        ws.cell(r, 8, "\n".join([
+        body = (group_feedback(key, label, items) if key is not None else "\n".join([
             f"[{items[0]['phase']}]", items[0]["activity"], "", label, "",
             f"Recorded {len(items)} time(s) across {len(books)} book(s).", extra,
             f"Found by: {', '.join(sources)}", "",
             f"Example - {ex['book']} ({ex['target']})",
             f"Current: {Q(ex['current'])}", f"Issue: {ex['details']}",
             f"Suggested fix: {Q(ex['fix'])}", "",
-            f"Every instance is listed on sheet: {tab}"])).alignment = TOP
+            f"Every instance is listed on sheet: {tab}"]))
+        ws.cell(r, 8, body).alignment = TOP
         ws.cell(r, 9, "\n".join(t for _, t in books)).alignment = TOP
         ws.cell(r, 13, len(items)).alignment = TOP
         ws.cell(r, 14, len(books)).alignment = TOP
@@ -218,9 +250,10 @@ def render_recurring(data: list[dict], path) -> pathlib.Path:
         items = by_kind.get(code)
         if items:
             reasons = sorted({f["type"] for f in items})
-            entries.append((label, f"Logged under: {', '.join(reasons)}", tab, items))
+            entries.append((label, f"Logged under: {', '.join(reasons)}", tab,
+                            items, None))
     _summary(wb, "Recurring Errors", entries)
-    for label, extra, tab, items in entries:
+    for label, extra, tab, items, _ in entries:
         _detail_sheet(wb, tab, label, items)
     wb.save(path)
     return pathlib.Path(path)
@@ -245,9 +278,9 @@ def render_by_type(data: list[dict], path) -> pathlib.Path:
         if seen[tab] > 1:
             tab = f"{tab[:28]}~{seen[tab]}"
         kinds = sorted({BY_CODE[f["kind"]][4] for f in items})
-        entries.append((title, "Covers: " + "; ".join(kinds), tab, items))
+        entries.append((title, "Covers: " + "; ".join(kinds), tab, items, k))
     _summary(wb, "Errors by Type", entries)
-    for title, extra, tab, items in entries:
+    for title, extra, tab, items, _ in entries:
         _detail_sheet(wb, tab, f"{items[0]['sheet']} - {title}", items)
     wb.save(path)
     return pathlib.Path(path)
