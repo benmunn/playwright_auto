@@ -8,3 +8,10 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Credentials and cached browser session
+.env
+.auth/
+
+# Failure screenshots
+debug/

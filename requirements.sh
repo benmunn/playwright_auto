@@ -1,3 +1,2 @@
-uv add playwright
-uv run install playwright
-uv run install playwright-deps
+uv add playwright openpyxl python-dotenv
+uv run playwright install chromium
