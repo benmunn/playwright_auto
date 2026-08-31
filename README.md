@@ -285,11 +285,25 @@ Where the two stand as of the last dry run:
 | applied | 149 | 8 |
 | already carried the suggested text | 0 | 220 |
 | skipped, edited into something else | 1 | 2 |
-| left for a person | 14 findings with no fix, 1 answer pill | 5 findings with no fix |
+| left for a person | 1 item, 1 answer pill | none |
 
 Both are now applied. Multiple choice was nearly done before the run -- 220 of its 231
 books had been fixed by hand since the report was written -- while context clue had had
 almost none of it.
+
+Findings that say what is wrong without saying what to put there are never written; an
+empty box would erase the item. Most of them turned out to need nothing anyway: eleven
+of the thirteen on context clue sat on items a different finding had already rewritten,
+and all five on multiple choice had been put right by hand before the run reached them.
+`RESOLVED` records the latter, with what was seen on the page, so a run stops naming work
+that no longer exists.
+
+`AMENDED` covers the opposite case -- a suggested fix that was itself faulty. Reading
+back all 217 fields written to the site turned up two: `I made plan` for *I made a plan*,
+and `now its coming` for *now it's coming*, both inherited from the report. An amendment
+gives the text that went in and the text that should have, is exempt from the journal
+(whose whole record of the field is that it is finished), and becomes an ordinary
+already-reads-this once applied.
 
 One check worth keeping: a box that already holds the suggested text is recognised as
 finished **before** its text is compared with what the report quoted. `norm()` folds

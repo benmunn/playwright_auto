@@ -117,6 +117,38 @@ UNUSABLE = {
 DECLINED = {("TMC", "53"): "written with three options throughout, which is correct",
             ("TMC", "2817"): "written with three options throughout, which is correct"}
 
+# Findings the report answered with text that was itself faulty, caught by reading back
+# what this script had written. Each entry is (what went in, what it should have said);
+# the run treats the first as the text it expects to find, so an amendment applies once
+# and turns into an ordinary "already reads the suggested text" afterwards. They are
+# exempt from the journal, whose whole record of them is that they are finished.
+AMENDED = {
+    ("CC", "609", "Q3"): (
+        "I made plan to get better grades. The first step was doing my homework "
+        "every day.",
+        "I made a plan to get better grades. The first step was doing my homework "
+        "every day."),
+    ("CC", "942", "Q7"): (
+        "The direction of the wind changed; it was coming from the left, but now its "
+        "coming from the right.",
+        "The direction of the wind changed; it was coming from the left, but now it's "
+        "coming from the right."),
+}
+
+# Findings with no suggested fix that were checked against the live page and found to
+# have been put right by somebody else. Recording them stops a run naming work that no
+# longer exists; the note is what was seen, so the claim can be rechecked.
+RESOLVED = {
+    ("TMC", "65", "Q3"): "options rewritten -- \"have wings to fly\", which was true "
+                         "as well, is gone; only \"have a flame\" now answers it",
+    ("TMC", "73", "Q7"): "options rewritten -- the two that were both right are one "
+                         "answer now, \"Violet bent the cards and yelled\"",
+    ("TMC", "697", "Q5"): "option B rewritten to \"They all tried to score goals\"",
+    ("TMC", "929", "Q8"): "the stray \"be\" is gone from the question",
+    ("TMC", "1271", "Q4"): "the stem now gives the coin values, so the question can be "
+                           "answered from itself",
+}
+
 # --------------------------------------------------------------------------------------
 # Finding the boxes
 # --------------------------------------------------------------------------------------
@@ -232,6 +264,8 @@ def load_edits(act: Activity, paths, titles) -> tuple[dict, list[str]]:
             bid, target = f["book_id"], f["target"]
             if (act.key, bid, target) in UNUSABLE:
                 continue
+            if (act.key, bid, target) in RESOLVED:
+                continue
             # A declined book keeps only the fields that are not the declined kind; its
             # other findings are ordinary work and still apply.
             if (act.key, bid) in DECLINED and f["prefix"] == "AnsD":
@@ -277,18 +311,39 @@ def load_edits(act: Activity, paths, titles) -> tuple[dict, list[str]]:
             fix = fixes.pop()
         spot = parse_target(target)
         books.setdefault(bid, {"book_id": bid, "book": fs[0]["book"], "fields": {}})
+        # An amendment replaces both halves: what is expected on the page is what this
+        # script last wrote there, not what the report quoted before any of it ran.
+        amend = AMENDED.get((act.key, bid, target))
         books[bid]["fields"][target] = {
-            "target": target, "n": spot[0], "slot": spot[1], "fix": fix,
-            "current": fs[0]["current"].strip(),
+            "target": target, "n": spot[0], "slot": spot[1],
+            "fix": amend[1] if amend else fix,
+            "current": amend[0] if amend else fs[0]["current"].strip(),
             "types": sorted({f["type"] for f in fs}),
-            "from": fs[0].get("from"),
+            "from": fs[0].get("from"), "amended": bool(amend),
         }
+
+    # An amendment on a field the report never raised still has to run.
+    for (key, bid, target), (was, should) in AMENDED.items():
+        if key != act.key:
+            continue
+        book = books.setdefault(bid, {"book_id": bid, "book": "", "fields": {}})
+        if target not in book["fields"]:
+            spot = parse_target(target)
+            book["fields"][target] = {
+                "target": target, "n": spot[0], "slot": spot[1], "fix": should,
+                "current": was, "types": ["Amended"], "from": None, "amended": True}
     return books, notes
 
 
 def outstanding(book: dict, done: dict[str, set[str]]) -> dict:
+    """The book with the fields already written taken out of it.
+
+    An amendment is kept whatever the journal says: the journal records that the field
+    was written, and the amendment exists precisely because what went in was wrong.
+    """
     have = done.get(book["book_id"], set())
-    return {**book, "fields": {t: q for t, q in book["fields"].items() if t not in have}}
+    return {**book, "fields": {t: q for t, q in book["fields"].items()
+                               if t not in have or q.get("amended")}}
 
 
 # --------------------------------------------------------------------------------------
