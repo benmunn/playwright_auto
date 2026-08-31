@@ -202,6 +202,42 @@ whose English is merely reworded; then the rest. Decisions go to
 `data/translation_fixes.json`, written per entry so an interrupted review keeps what it
 has already decided.
 
+## Rewriting the open-ended questions
+
+`oeq_edit.py` applies the OEC findings to the activity pages, one book per visit, both
+questions in a single Update. It covers every OEQ subtype -- spelling, capitalization,
+spacing, grammar, punctuation, awkward phrasing, unclear, too hard and requires-reading
+-- because they all come to the same operation: replace the text and drop the recording
+that reads the old wording.
+
+```bash
+uv run python oeq_edit.py            # dry run over both batches
+uv run python oeq_edit.py --apply    # save
+```
+
+Three things about this page are worth knowing before changing the script.
+
+**There are two buttons labelled "Remove" per question.** The one beside the `<h3>`
+deletes the whole question; the one beside "Change Audio" drops the recording. Only the
+second is ever clicked, and it is found by asking for the Remove that shares a parent
+with "Change Audio". Never by position -- a question whose audio is already gone has
+only the destructive one left. The questions are counted before and after editing as a
+backstop, and a book that lost one is abandoned unsaved.
+
+**Three findings carry an instruction where the replacement belongs** ("Replace it with
+a question a student can answer..."). Typed in, that sentence becomes the question on
+screen, so `usable()` drops anything that does not read as a question.
+
+**The audio removal is blocked server-side.** Asked to save a question with no audio,
+the backend tries to re-record it and answers `ELEVENLABS_API_KEY is not set` -- HTTP
+200, failure in the body, nothing shown on the page. It rejects the whole mutation, so
+the text cannot be saved in the same visit that clears the recording. `--keep-audio`
+saves the text alone and works; the full run is held until the key is configured.
+
+Of the 96 books with a flagged question, a dry run currently reports 68 to change, 16
+already carrying the suggested text, and 12 rewritten on the site into something other
+than what we proposed -- those last are left alone, since the live wording reads well.
+
 ## Re-scraping after the fixes have been applied
 
 `word_edit.py` writes to the global word list, so once it has run the workbook and the

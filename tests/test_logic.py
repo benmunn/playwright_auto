@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from openpyxl import Workbook  # noqa: E402
 
+import oeq_edit as oe  # noqa: E402
 import word_edit as we  # noqa: E402
 import word_ids as W  # noqa: E402
 from report.plain import plain  # noqa: E402
@@ -284,6 +285,121 @@ def every_module_reads_the_same_number_of_word_slots():
     hardcoded = re.findall(r"for s in range\(1, (\d+)\)", source)
     assert not hardcoded, f"make_reports.py hardcodes a slot count: {hardcoded}"
     assert rs.MAX_SLOTS >= 25
+
+
+# --------------------------------------------------------------------------------------
+# Rewriting the open-ended questions
+# --------------------------------------------------------------------------------------
+
+
+@case
+def an_instruction_is_not_a_replacement_question():
+    """Three findings carry the reviewer's note where the new question belongs. Typed
+    out, that sentence becomes what the child is asked."""
+    assert not oe.usable("Replace it with a question a student can answer from their "
+                         "own experience before they open the book.")
+    assert not oe.usable("Rewrite this to be simpler.")
+    assert oe.usable("What do you think this story will be about?")
+    assert oe.usable("Have you seen a desert? What did it look like?")
+
+
+@case
+def a_contested_question_is_left_alone_unless_it_was_settled_by_hand():
+    """Two findings wanting different text is a decision, not something to resolve by
+    whichever happened to be read first."""
+    f = lambda bid, tgt, fix, typ: {
+        "sheet": "OEC", "prefix": "Q", "book_id": bid, "book": "b", "target": tgt,
+        "n": int(tgt[1:]), "type": typ, "fix": fix, "current": "old text"}
+
+    def load(findings):
+        import make_reports
+        real = make_reports.load_findings
+        make_reports.load_findings = lambda path, titles: findings
+        try:
+            return oe.load_edits([pathlib.Path("tests/test_logic.py")], {})
+        finally:
+            make_reports.load_findings = real
+
+    books, notes = load([f("9", "Q1", "A one?", "Grammar"),
+                         f("9", "Q1", "A two?", "Too Hard")])
+    assert books == {}, books
+    assert any("CHOSEN" in n for n in notes), notes
+
+    # Agreeing findings are one edit, not a conflict.
+    books, _ = load([f("9", "Q1", "Same?", "Grammar"), f("9", "Q1", "Same?", "Unclear")])
+    assert books["9"]["questions"]["Q1"]["fix"] == "Same?"
+    assert books["9"]["questions"]["Q1"]["types"] == ["Grammar", "Unclear"]
+
+    # The instruction drops out, leaving the real rewrite uncontested.
+    books, _ = load([f("9", "Q1", "A real one?", "Grammar"),
+                     f("9", "Q1", "Replace it with something better.", "Requires Reading")])
+    assert books["9"]["questions"]["Q1"]["fix"] == "A real one?"
+
+
+@case
+def a_settled_question_takes_the_reviewed_text():
+    bid, tgt = next(iter(oe.CHOSEN))
+    assert oe.CHOSEN[(bid, tgt)].endswith("?")
+
+
+@case
+def a_book_saved_for_one_question_still_owes_the_other():
+    """The fault that once left three Vietnamese boxes empty for good: treating a book
+    as finished because it was saved once."""
+    book = {"book_id": "9", "book": "b", "questions": {"Q1": {}, "Q2": {}}}
+    assert set(oe.outstanding(book, {"9": {"Q1"}})["questions"]) == {"Q2"}
+    assert oe.outstanding(book, {"9": {"Q1", "Q2"}})["questions"] == {}
+    assert set(oe.outstanding(book, {})["questions"]) == {"Q1", "Q2"}
+
+
+@case
+def a_spacing_fix_is_compared_exactly():
+    """Several fixes correct spacing and nothing else. Collapsing whitespace before
+    comparing would call such an edit verified without it ever being made."""
+    assert not oe.same("what did you?  If no", "what did you? If no")
+    assert oe.same(" trailing ", "trailing")
+
+
+@case
+def the_audio_remove_is_never_found_by_position():
+    """Each question has two Remove buttons and the one beside the heading deletes the
+    question. A question whose audio is already gone has only that one left."""
+    src = pathlib.Path("oeq_edit.py").read_text(encoding="utf-8")
+    body = src.split("FIND_JS")[1].split("COUNT_JS")[0]
+    assert "change.parentElement" in body, "the audio Remove must be found via Change Audio"
+    assert "removeButton: remove ? buttons.indexOf(remove) : -1" in body
+    # and nothing may fall back to picking a Remove by index
+    assert "'Remove')[1]" not in body and '"Remove")[1]' not in body
+
+
+@case
+def a_refused_save_is_read_out_of_the_body():
+    """The endpoint answers HTTP 200 and puts its objection in the body, so a refusal
+    and a success look identical from outside. Only the body tells them apart."""
+    class Resp:
+        url = "https://x/graphql-prod"
+        def __init__(self, payload, method="POST"):
+            self._p = payload
+            self.request = type("R", (), {"method": method})()
+        def json(self):
+            return self._p
+
+    class Page:
+        def on(self, event, fn):
+            self.fn = fn
+
+    page = Page()
+    m = oe.Mutation(page)
+    page.fn(Resp({"errors": [{"message": "ELEVENLABS_API_KEY is not set",
+                              "path": ["updateOpenEndedQuestionsContent"]}],
+                  "data": None}))
+    assert m.errors == ["ELEVENLABS_API_KEY is not set"]
+    assert m.take() == ["ELEVENLABS_API_KEY is not set"]
+    assert m.take() == [], "taking twice must not repeat the same refusal"
+    # A success, and an error belonging to some other mutation, are both ignored.
+    page.fn(Resp({"data": {"updateOpenEndedQuestionsContent": {"id": 1}}}))
+    page.fn(Resp({"errors": [{"message": "nope", "path": ["wordListByBook"]}]}))
+    assert m.take() == []
 
 
 if __name__ == "__main__":
