@@ -5,12 +5,13 @@ book, so a fix to any of them lands on every book linked to that entry. The per-
 reports therefore list the same fix several times over, and give no warning when two
 books want the entry to say different things.
 
-This sheet is the other way round: one row per global word. Where every book that uses
-an entry wants the same thing, that is one row and one edit. Where they do not -- `bark`
-the dog sound against `bark` on a tree -- the entry cannot serve both, so the row is
-split into 587A / 587B, one per sense, and each names the books it covers. Splitting is
-a judgment about meaning rather than a rule about text, so the splits below were decided
-by reading the story sentence of every book involved; SPLITS records that reading.
+These rows are the other way round: one per global word. Where every book that uses an
+entry wants the same thing, that is one row and one edit, and it goes on the main sheet.
+Where they do not -- `bark` the dog sound against `bark` on a tree -- the entry cannot
+serve both, so the row is split into 587A / 587B, one per sense, each naming the books it
+covers, and those go on a second sheet of their own. Splitting is a judgment about meaning
+rather than a rule about text, so the splits below were decided by reading the story
+sentence of every book involved; SPLITS records that reading.
 
 Story-sentence findings are deliberately absent: they are faults in a book's own
 sentence, not in the shared entry, and there is no column here that could hold them.

@@ -23,9 +23,24 @@ that reason, and none of them should be removed to make a run go faster.
                                    each field, so a run can resume where it stopped and
                                    any change can be traced or put back by hand.
 
-Only the "Vocab Changes" sheet is used. The split sheet is deliberately not touched: its
-rows are senses that need new word entries, and editing the shared entry in place is the
-exact mistake that sheet exists to prevent.
+Three things are held back, and a run says so rather than passing over them quietly:
+
+    The split sheet.        Its rows are senses that need new word entries; editing the
+                            shared entry in place is the mistake that sheet exists to
+                            prevent.
+    Wrong Sense rows.       Re-sensing an entry that several books share strands the
+                            books using the sense being replaced. WRONG_SENSE_CLEARED
+                            lists the ids checked and found to be on a single book,
+                            where there is no other book to strand.
+    Entries that would      The database holds a unique constraint on word, part of
+    duplicate another.      speech and definition. The save mutation answers HTTP 200
+                            with the failure in the body, so a rejected save looks like
+                            a successful one; the cached global list is checked first so
+                            the request is never spent.
+
+A run outlives its login, and an expired session is indistinguishable from a dead server
+-- the page simply never loads. Rather than stopping the whole run, a failed load logs in
+again and retries once before counting as a failure.
 
 The Korean and Vietnamese definitions are edited too, but only where the sheet carries a
 replacement -- a reworded English definition usually leaves its translations still true,
@@ -115,8 +130,12 @@ def load_rows(path: Path, sheet: str) -> list[dict]:
     ws = wb[sheet]
     hdr = {ws.cell(HEADER_ROW, c).value: c for c in range(1, ws.max_column + 1)
            if ws.cell(HEADER_ROW, c).value}
+    # "Error Types" belongs here even though nothing is read out of it directly: the
+    # Wrong Sense hold is driven by it, and a lookup for a column that is absent returns
+    # empty, so without this a report missing the column would quietly write every entry
+    # the hold exists to keep back.
     needed = {"word_id", "current_word", "fixed_word", "current_pos", "fixed_pos",
-              "current_def", "fixed_def"}
+              "current_def", "fixed_def", "Error Types"}
     missing = needed - set(hdr)
     if missing:
         sys.exit(f"{sheet} is missing column(s): {', '.join(sorted(missing))}")
@@ -547,7 +566,8 @@ def main() -> None:
     ap.add_argument("--limit", type=int, help="only handle this many words")
     ap.add_argument("--only", help="comma-separated word ids to handle")
     ap.add_argument("--redo", action="store_true",
-                    help="handle words the journal already records as saved")
+                    help="handle words whose pending changes the journal already "
+                         "records as written")
     ap.add_argument("--no-verify", dest="verify", action="store_false",
                     help="skip the reload that confirms each save stuck")
     args = ap.parse_args()

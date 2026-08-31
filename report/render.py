@@ -63,7 +63,7 @@ WIDTH = {"Page": 8, "Text": 52, "Word": 20, "Word ID": 9, "Part of Speech": 13, 
          "Sentence": 52, "Bank Answer": 16, "Question": 46, "Answer Key": 10,
          "Options A-D": 42, "Preview Text": 46, "Main Character(s)": 24, "Field": 11,
          "Current Text": 44, "Suggested Fix": 44, "Details": 46, "Book ID": 9,
-         "Book": 30, "Reason": 17, "Source": 11}
+         "Book": 30, "Reason": 17}
 
 SUM_HDR = ["Date", "ID", "Name", "Level", "Book", "Error Type", "Relevant Activity",
            "Feedback", "Relevant Books", "Relevant Images/Videos", "Response Name",

@@ -183,6 +183,36 @@ throttle, and stops after three consecutive failures like every other script her
 The image, the audio, and any translation the sheet has no replacement for are never
 touched.
 
+## Reviewing the vocabulary
+
+[trans_dump.py](trans_dump.py) builds the review set for the Korean and Vietnamese
+definitions: every global entry the books use, judged against the definition and part of
+speech it will have *after* the English fixes are applied rather than the ones it has
+now, since reviewing against text that is about to change approves translations that go
+wrong the moment they are written.
+
+```bash
+uv run python trans_dump.py stats      # sizes, and defects a rule can see
+uv run python trans_dump.py batch 3    # print one batch to read
+```
+
+Batches come riskiest-first: entries whose English changes *meaning* first, since their
+translations are about to describe a word that no longer exists at that id; then entries
+whose English is merely reworded; then the rest. Decisions go to
+`data/translation_fixes.json`, written per entry so an interrupted review keeps what it
+has already decided.
+
+## Tests
+
+```bash
+uv run python tests/test_logic.py
+```
+
+No browser, no network. What is covered is the reasoning the runs depend on -- which
+rows are held back, which edits the database would refuse, whether a word still has work
+outstanding -- because that is where the faults have actually been. Every test stands
+for a bug that reached the live word list or came within one run of doing so.
+
 ## Setup
 
 ```bash

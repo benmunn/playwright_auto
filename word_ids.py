@@ -16,6 +16,10 @@ match rather than silently resolving to the wrong sense.
 
 Matching runs in tiers, strictest first, and every entry records which tier resolved it
 so a reviewer can audit the weak ones.
+
+The scrape also captures the Korean and Vietnamese definitions, which sit on the same
+list rows. They belong to the global entry rather than to any book, so no per-book scrape
+carries them and this is the only place they are read.
 """
 
 from __future__ import annotations
