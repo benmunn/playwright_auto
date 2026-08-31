@@ -139,6 +139,13 @@ AMENDED = {
 # have been put right by somebody else. Recording them stops a run naming work that no
 # longer exists; the note is what was seen, so the claim can be rechecked.
 RESOLVED = {
+    ("CC", "71", "Q9"): "rewritten to \"A storage closet is a place to put things you "
+                        "don't use often\", which settles both the grammar and the "
+                        "cupboard that was too small",
+    ("CC", "929", "Q8"): "the missing \"and\" is in -- \"winters are long and icy\". "
+                         "The proposed text also simplified the opening clause, which "
+                         "was never the fault reported",
+    ("CC", "672", "A9"): "the answer pill reads \"passed out\" now, not \"passed\"",
     ("TMC", "65", "Q3"): "options rewritten -- \"have wings to fly\", which was true "
                          "as well, is gone; only \"have a flame\" now answers it",
     ("TMC", "73", "Q7"): "options rewritten -- the two that were both right are one "

@@ -285,18 +285,21 @@ Where the two stand as of the last dry run:
 | applied | 149 | 8 |
 | already carried the suggested text | 0 | 220 |
 | skipped, edited into something else | 1 | 2 |
-| left for a person | 1 item, 1 answer pill | none |
+| left for a person | none | none |
 
 Both are now applied. Multiple choice was nearly done before the run -- 220 of its 231
 books had been fixed by hand since the report was written -- while context clue had had
 almost none of it.
 
 Findings that say what is wrong without saying what to put there are never written; an
-empty box would erase the item. Most of them turned out to need nothing anyway: eleven
-of the thirteen on context clue sat on items a different finding had already rewritten,
-and all five on multiple choice had been put right by hand before the run reached them.
-`RESOLVED` records the latter, with what was seen on the page, so a run stops naming work
-that no longer exists.
+empty box would erase the item. All of them turned out to need nothing: eleven of the
+thirteen on context clue sat on items a different finding had already rewritten, and the
+rest -- including book 672's answer pill, which is not a field this script can edit at
+all -- were put right by hand. `RESOLVED` records each with what was seen on the page, so
+a run stops naming work that no longer exists and the claim can be rechecked rather than
+taken on trust.
+
+Both activities now report nothing outstanding.
 
 `AMENDED` covers the opposite case -- a suggested fix that was itself faulty. Reading
 back all 217 fields written to the site turned up two: `I made plan` for *I made a plan*,

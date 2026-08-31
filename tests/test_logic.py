@@ -527,7 +527,9 @@ def the_hand_written_decisions_are_reachable():
         assert key[0] in ae.ACTIVITIES, key
     for key in ae.RESOLVED:
         assert key[0] in ae.ACTIVITIES, key
-        assert ae.parse_target(key[2]) is not None, key
+        # A9 is an answer pill rather than a field, and pills are not something this
+        # script edits; it is recorded here because it was outstanding and is not now.
+        assert ae.parse_target(key[2]) is not None or key[2].startswith("A"), key
     for key in ae.DECLINED:
         assert key[0] in ae.ACTIVITIES, key
 
