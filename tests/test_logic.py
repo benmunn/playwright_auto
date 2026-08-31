@@ -476,8 +476,44 @@ def a_finding_with_no_suggested_fix_is_never_written():
                                      [pathlib.Path("tests/test_logic.py")], {})
     finally:
         make_reports.load_findings = real
-    assert books == {}, books
+    # Not "no books at all": the amendments are injected on every load, by design.
+    assert "9" not in books, books
     assert any("no suggested fix" in n for n in notes), notes
+
+
+@case
+def an_amendment_outlives_the_journal_that_says_it_is_done():
+    """An amendment exists because what went in was wrong, and the journal's whole
+    record of that field is that it was written. Filtering on the journal would drop
+    every amendment before it ever ran."""
+    book = {"book_id": "9", "book": "b",
+            "fields": {"Q1": {"amended": True}, "Q2": {}}}
+    kept = ae.outstanding(book, {"9": {"Q1", "Q2"}})["fields"]
+    assert set(kept) == {"Q1"}, kept
+
+
+@case
+def an_amendment_says_what_went_in_not_what_the_report_quoted():
+    """The page holds what this script last wrote there, so that is what the identity
+    check has to expect -- the report's original quote is two edits stale."""
+    for (key, bid, target), (was, should) in ae.AMENDED.items():
+        assert key in ae.ACTIVITIES, key
+        assert ae.parse_target(target) is not None, key
+        assert was != should, key
+    import make_reports
+
+    real = make_reports.load_findings
+    make_reports.load_findings = lambda path, titles: []
+    try:
+        books, _ = ae.load_edits(ae.ACTIVITIES["CC"],
+                                 [pathlib.Path("tests/test_logic.py")], {})
+    finally:
+        make_reports.load_findings = real
+    for (key, bid, target), (was, should) in ae.AMENDED.items():
+        if key != "CC":
+            continue
+        got = books[bid]["fields"][target]
+        assert got["current"] == was and got["fix"] == should, got
 
 
 @case
@@ -488,6 +524,11 @@ def the_hand_written_decisions_are_reachable():
         assert key[0] in ae.ACTIVITIES, key
         assert ae.parse_target(key[2]) is not None, key
     for key in ae.UNUSABLE:
+        assert key[0] in ae.ACTIVITIES, key
+    for key in ae.RESOLVED:
+        assert key[0] in ae.ACTIVITIES, key
+        assert ae.parse_target(key[2]) is not None, key
+    for key in ae.DECLINED:
         assert key[0] in ae.ACTIVITIES, key
 
 
