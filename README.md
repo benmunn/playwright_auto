@@ -262,14 +262,14 @@ own, so `AnsC4` is the third answer input inside `Question 4`'s block. The block
 is found by walking up from the heading to the nearest ancestor holding an answer input,
 and it is checked for holding exactly one question textarea rather than assumed to.
 
-Two things about TMC need a person rather than a script:
-
-- **Twelve `AnsD` findings ask for an option that does not exist.** Those questions have
-  three answers, so the fix would add a fourth -- which also means saying whether the new
-  option is a distractor or the right answer. The report does not record that, and
-  guessing makes a wrong answer correct, so they are held back and listed.
-- **Book 2841's `AnsAll4`** is not a rewrite: the question and all four options belong to
-  a different book.
+A finding on an `AnsD` that does not exist is asking for an option to be added rather
+than corrected, which also means saying whether the new option is a distractor or the
+right answer. The report does not record that and a wrong choice makes a wrong answer
+correct, so such a finding is held and listed. The twelve on books 53 and 2817 were
+reviewed and declined -- both books are written with three options throughout and are
+correct as they stand -- and sit in `DECLINED` so they stop being reported as
+outstanding. Book 2841's `AnsAll4` is not a rewrite at all: its question and all four
+options belonged to a different book, and it has since been replaced by hand.
 
 An `AnsAll` finding quotes all four options in one cell and is expanded into one edit per
 letter, skipping the letters that did not change -- so a punctuation fix on two options
@@ -282,13 +282,14 @@ Where the two stand as of the last dry run:
 | | context clue | multiple choice |
 |---|---|---|
 | books with a flagged field | 150 | 231 |
-| would change | 149 | 8 |
-| already carry the suggested text | 0 | 220 |
-| skipped, edited into something else | 1 | 3 |
-| held for a person | 14 findings with no fix | 12 missing options, 1 wrong-book question |
+| applied | 149 | 8 |
+| already carried the suggested text | 0 | 220 |
+| skipped, edited into something else | 1 | 2 |
+| left for a person | 14 findings with no fix, 1 answer pill | 5 findings with no fix |
 
-Multiple choice is nearly done already -- 220 of its 231 books have had the fix applied
-by hand since the report was written. Context clue has had almost none of it.
+Both are now applied. Multiple choice was nearly done before the run -- 220 of its 231
+books had been fixed by hand since the report was written -- while context clue had had
+almost none of it.
 
 One check worth keeping: a box that already holds the suggested text is recognised as
 finished **before** its text is compared with what the report quoted. `norm()` folds

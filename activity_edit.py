@@ -25,8 +25,11 @@ The page is not laid out the way the report's field names suggest:
 
     Some questions have only three answers. A finding on AnsD there is asking for an
     option to be added rather than corrected, which also means choosing whether the new
-    option is a distractor or the right answer. The report does not say which, and a
-    wrong choice makes a wrong answer correct, so those are held back and listed.
+    option is a distractor or the right answer -- the report does not say which, and a
+    wrong choice makes a wrong answer correct. Such a finding is held back and listed
+    rather than guessed at. Books 53 and 2817 are written with three options throughout
+    and were reviewed and found correct as they stand, so their twelve are recorded in
+    DECLINED instead, which is what stops them being reported as outstanding for good.
 
 An AnsAll finding quotes all four options at once and is expanded into four ordinary
 edits, one per letter, so that a fix touching two options does not rewrite the other
@@ -100,13 +103,19 @@ CHOSEN = {
     ("TMC", "808", "Q6"): "What is the closest meaning of “be able to”?",
 }
 
-# Findings whose "fix" is a note to a person rather than replacement text. There is one,
-# and it is not a rewrite at all: the question and all four of its options belong to a
-# different book. Nothing here can put that right.
+# Findings whose "fix" is a note to a person rather than replacement text, and findings
+# reviewed and declined. Nothing here is written, and each is named on every run rather
+# than passed over quietly.
 UNUSABLE = {
     ("TMC", "2841", "AnsAll4"): "the question and all four options belong to a "
                                 "different book -- needs rewriting by hand",
 }
+# Books 53 and 2817 ask every question with three options. The report read that as a
+# fourth option missing, but three is how the books are written and they are correct as
+# they stand, so the twelve AnsD findings on them are declined rather than held. Without
+# this they would be reported as outstanding on every run for good.
+DECLINED = {("TMC", "53"): "written with three options throughout, which is correct",
+            ("TMC", "2817"): "written with three options throughout, which is correct"}
 
 # --------------------------------------------------------------------------------------
 # Finding the boxes
@@ -223,6 +232,10 @@ def load_edits(act: Activity, paths, titles) -> tuple[dict, list[str]]:
             bid, target = f["book_id"], f["target"]
             if (act.key, bid, target) in UNUSABLE:
                 continue
+            # A declined book keeps only the fields that are not the declined kind; its
+            # other findings are ordinary work and still apply.
+            if (act.key, bid) in DECLINED and f["prefix"] == "AnsD":
+                continue
             if not f["fix"].strip():
                 notes.append(f"book {bid} {target} [{f['type']}]: no suggested fix "
                              f"-- {f['details'][:60]}")
@@ -334,6 +347,9 @@ def run(args) -> None:
     for (key, bid, target), why in sorted(UNUSABLE.items()):
         if key == act.key:
             print(f"  ! book {bid} {target}: {why}")
+    for (key, bid), why in sorted(DECLINED.items()):
+        if key == act.key:
+            print(f"  - book {bid}: fourth-option findings declined -- {why}")
     if notes:
         print()
 
