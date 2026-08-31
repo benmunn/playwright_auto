@@ -21,6 +21,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 import manual_qa
+import rs_scrape
 from report.classify import classify
 from report.plain import BANNED, plain
 from report.render import render_by_type, render_long, render_recurring
@@ -134,7 +135,7 @@ def load_word_uses(path: Path) -> dict[str, list[dict]]:
         if bid is None:
             continue
         bid = str(int(bid)) if isinstance(bid, float) else str(bid).strip()
-        for s in range(1, 26):
+        for s in range(1, rs_scrape.MAX_SLOTS + 1):
             if f"W{s}" not in hdr:
                 break
             cell = lambda name: str(ws.cell(rn, hdr[name]).value or "").strip()

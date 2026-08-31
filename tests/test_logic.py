@@ -11,6 +11,7 @@ within one run of doing so.
 
 from __future__ import annotations
 
+import pathlib
 import sys
 import tempfile
 import traceback
@@ -235,6 +236,54 @@ def quoted_text_is_left_exactly_as_written():
     "a large circular structure" once became "a large explains itself in a circle"."""
     out = plain('above level: "a large circular structure"')
     assert '"a large circular structure"' in out, out
+
+
+# --------------------------------------------------------------------------------------
+# Staying consistent across a re-scrape
+# --------------------------------------------------------------------------------------
+
+
+@case
+def an_unresolved_slot_does_not_keep_the_previous_word_s_id():
+    """A re-scrape can put a different word in a slot. An id left over from the previous
+    occupant is worse than none, because everything downstream trusts the column."""
+    from openpyxl import Workbook
+
+    import rs_scrape as rs
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Vocab"
+    for c, h in enumerate(["id", "W1", "POS1", "DEF1", "SENT1", "WID1"], 1):
+        ws.cell(1, c, h)
+    ws.cell(2, 1, "900")
+    ws.cell(2, 2, "zebra")
+    ws.cell(2, 3, "noun")
+    ws.cell(2, 4, "a definition no global entry has")
+    ws.cell(2, 6, 111111)
+    headers = rs.header_map(ws)
+    tiers = index(("222", "other", "noun", "x"))
+    for r, slot, word, pos, dfn in W.vocab_entries(ws, headers):
+        wid, _, _ = W.resolve(word, dfn, tiers, pos)
+        if wid:
+            ws.cell(r, headers[f"wid{slot}"], int(wid))
+        else:
+            ws.cell(r, headers[f"wid{slot}"]).value = None
+    assert ws.cell(2, 6).value is None, ws.cell(2, 6).value
+
+
+@case
+def every_module_reads_the_same_number_of_word_slots():
+    """A slot bound written out by hand in one module and imported in the others drifts:
+    words past the hardcoded limit go missing from the reports without a word said."""
+    import re
+
+    import rs_scrape as rs
+
+    source = pathlib.Path("make_reports.py").read_text(encoding="utf-8")
+    hardcoded = re.findall(r"for s in range\(1, (\d+)\)", source)
+    assert not hardcoded, f"make_reports.py hardcodes a slot count: {hardcoded}"
+    assert rs.MAX_SLOTS >= 25
 
 
 if __name__ == "__main__":

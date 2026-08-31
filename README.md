@@ -202,6 +202,29 @@ whose English is merely reworded; then the rest. Decisions go to
 `data/translation_fixes.json`, written per entry so an interrupted review keeps what it
 has already decided.
 
+## Re-scraping after the fixes have been applied
+
+`word_edit.py` writes to the global word list, so once it has run the workbook and the
+live list have diverged: 859 definitions currently differ. Two things follow, and
+neither is obvious from the scraper on its own.
+
+**A re-scrape will not reconcile them.** `rs_scrape.py` only ever writes into empty
+cells, and `SKIP_ALREADY_RECORDED` skips a book whose values are already there. Running
+it again over a populated workbook changes nothing. To pull the corrected text down, the
+Vocab data cells have to be cleared first -- and then the `Err[#]` findings beside them
+describe text that is gone, so they need re-QAing rather than re-reading.
+
+**Clearing the word cells means re-matching the ids.** `WID[#]` is written per slot by
+`word_ids.py`, and a re-scrape can put a different word in a given slot. An id left
+behind from the previous occupant is worse than a blank one, because everything
+downstream treats that column as naming the entry. `word_ids.py --match --write` now
+clears the cell of any slot it cannot resolve, so a stale id cannot survive; run it
+again after any re-scrape of the Vocab sheet.
+
+The reports themselves stay honest in the meantime: `make_reports.py` replays
+`data/word_edits.jsonl` over the current-value columns, so they describe the list as it
+now stands rather than as it was scraped.
+
 ## Tests
 
 ```bash

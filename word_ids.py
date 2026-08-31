@@ -309,6 +309,12 @@ def match(write: bool) -> None:
                 if write:
                     ws.cell(r, headers[f"wid{s}"], int(wid))
             else:
+                # Clear rather than leave. A re-scrape can put a different word in this
+                # slot, and an id left behind from the previous occupant is worse than
+                # no id: everything downstream treats the column as authoritative.
+                # Assigning through .value because ws.cell(r, c, None) is a silent no-op.
+                if write:
+                    ws.cell(r, headers[f"wid{s}"]).value = None
                 unresolved.append((path.name, r, s, word, definition, reason, n))
         if write:
             wb.save(path)
