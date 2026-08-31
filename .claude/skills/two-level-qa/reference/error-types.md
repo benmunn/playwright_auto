@@ -90,6 +90,18 @@ Match**, and that is the activity to name when reporting one — never Word Accu
 Because the list is the source, it holds words no activity uses: about twenty entries per
 book against the eight the activity exposes. Judge every word in the row.
 
+**The entry is shared, and its translations are not in this sheet.** `W[#]`, `POS[#]` and
+`DEF[#]` belong to an entry in the global word list, which any number of books link to;
+only `SENT[#]` belongs to this book. The same entry also carries a Korean and a
+Vietnamese definition, which the workbook does not hold at all.
+
+Do not try to QA the translations from here. A book-by-book pass would judge one shared
+entry once per book that uses it — the duplication the global word id exists to remove —
+and the workbook has no column to record the finding in. Translations are reviewed once
+per entry, on the **Vocab Changes** sheet of the by-type report, against the corrected
+English definition. Log what belongs to this book: the word, its part of speech, its
+definition and its sentence.
+
 ### The story sentence settles Wrong Sense and Part of Speech
 
 `SENT[#]` is the evidence, not a hint. It shows the word as this book actually uses it, so
@@ -115,6 +127,8 @@ the definition are about genuinely different meanings.
 | Punctuation | Extra or missing; definitions written with sentence-like punctuation |
 | **Part of Speech** | The POS contradicts the word or its definition |
 | **Wrong Sense** | The definition is correct English, but for a different meaning of the word than the one this book teaches |
+| **Spelling** | The word tile itself is misspelled — `aike` for *alike*, `hittern` for *hitter* |
+| **Wrong Entry** | The whole entry belongs to a different word or sense than the book uses, not just its tag |
 | Capitalization | Definitions consistent within the row. Words capitalised only if proper nouns or full sentences |
 | Spacing | Leading, trailing or double spaces |
 | Awkward Phrasing | Definition is not idiomatic, natural English |
@@ -122,6 +136,13 @@ the definition are about genuinely different meanings.
 | Answer Given | Definition contains the word or another form of it |
 | Too Hard | Vocabulary, grammar or concepts beyond the target reading level |
 | Other | — |
+
+**Wrong Entry vs Part of Speech vs Wrong Sense.** All three say the entry does not match
+the book, and they are fixed in different places. *Part of Speech* is only the tag being
+wrong. *Wrong Sense* is the definition describing another meaning. *Wrong Entry* is both
+at once — the tag and the definition belong to a different word spelled the same way, so
+the whole entry has to be rewritten. `bark(ing)`, tagged verb and defined as a dog's
+sound, in a book about trees is a Wrong Entry, not a Part of Speech slip.
 
 **Wrong Sense vs Too Hard.** These look alike and are not. *Too Hard* means the
 definition is about the right meaning but uses words above the reading level — the fix is

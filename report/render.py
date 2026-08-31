@@ -16,6 +16,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter as L
 
+from . import vocab_changes
 from .blurbs import BLURBS
 from .classify import BY_CODE, RULES
 
@@ -33,6 +34,7 @@ LEGEND = [(1, 5, "Urgent; manageable by R&D", "FF00FFFF", False),
 # Per-activity detail columns, then the tail every sheet shares.
 COLS = {
     "Vocab": [("Word", lambda f: f["ctx"].get("word", "")),
+              ("Word ID", lambda f: f["ctx"].get("word_id", "")),
               ("Part of Speech", lambda f: f["ctx"].get("pos", "")),
               ("Definition", lambda f: f["ctx"].get("definition", "")),
               ("Story Sentence", lambda f: f["ctx"].get("sentence", ""))],
@@ -51,11 +53,13 @@ COLS = {
     "LRA": [("Page", lambda f: f["ctx"].get("page", "")),
             ("Sentence", lambda f: f["ctx"].get("text", ""))],
 }
+# Book first on every detail sheet: the reader works a book at a time, so the column
+# they scan should not be buried past the activity content.
+HEAD = [("Book", lambda f: f["book"]), ("Book ID", lambda f: f["book_id"])]
 TAIL = [("Field", lambda f: f["target"]), ("Current Text", lambda f: f["current"]),
         ("Suggested Fix", lambda f: f["fix"]), ("Details", lambda f: f["details"]),
-        ("Book ID", lambda f: f["book_id"]), ("Book", lambda f: f["book"]),
-        ("Reason", lambda f: f["type"]), ("Source", lambda f: f.get("source", "AI"))]
-WIDTH = {"Page": 8, "Text": 52, "Word": 20, "Part of Speech": 13, "Definition": 46, "Story Sentence": 50,
+        ("Reason", lambda f: f["type"])]
+WIDTH = {"Page": 8, "Text": 52, "Word": 20, "Word ID": 9, "Part of Speech": 13, "Definition": 46, "Story Sentence": 50,
          "Sentence": 52, "Bank Answer": 16, "Question": 46, "Answer Key": 10,
          "Options A-D": 42, "Preview Text": 46, "Main Character(s)": 24, "Field": 11,
          "Current Text": 44, "Suggested Fix": 44, "Details": 46, "Book ID": 9,
@@ -68,6 +72,10 @@ SUM_W = [8.1, 6.0, 13.2, 11.2, 20.0, 24.0, 27.2, 78.0, 40.0, 20.0, 18.1, 20.0,
          12.0, 14.0, 30.0]
 LONG_HDR = SUM_HDR[:12] + ["1열", "Device, Browser"]
 LONG_W = [8.1, 6.0, 13.2, 11.2, 29.9, 11.1, 27.2, 90.0, 28.0, 47.2, 18.1, 38.6, 19.0, 17.2]
+
+# What each activity is called on a tab. The workbook sheet is "OEC", but the team
+# calls the activity OEQ, so that is what the report is labelled with.
+TAB_NAME = {"OEC": "OEQ"}
 
 # Short tab names for the "Other" sub-splits; the full label still heads each sheet.
 OTHER_SHORT = {"W05": "repeats the word", "W15": "factual error",
@@ -93,7 +101,7 @@ def _detail_sheet(wb, tab: str, heading: str, items: list[dict]) -> None:
     det.cell(2, 1, f"{len(items)} occurrence(s) across "
                    f"{len({f['book_id'] for f in items})} book(s) - "
                    f"{items[0]['activity']} [{items[0]['phase']}]")
-    cols = COLS[items[0]["sheet"]] + TAIL
+    cols = HEAD + COLS[items[0]["sheet"]] + TAIL
     for c, (h, _) in enumerate(cols, 1):
         cell = det.cell(4, c, h)
         cell.font, cell.fill, cell.alignment = Font(bold=True), HDR_FILL, TOP
@@ -150,13 +158,11 @@ def _summary(wb, title: str, entries) -> None:
         ex = max(items, key=lambda f: len(f["fix"]))
         books = sorted({(f["book_id"], f["book"]) for f in items},
                        key=lambda b: b[1].lower())
-        sources = sorted({f.get("source", "AI") for f in items})
         ws.cell(r, 6, label).alignment = TOP
         ws.cell(r, 7, items[0]["activity"]).alignment = TOP
         body = (group_feedback(key, label, items) if key is not None else "\n".join([
             f"[{items[0]['phase']}]", items[0]["activity"], "", label, "",
-            f"Recorded {len(items)} time(s) across {len(books)} book(s).", extra,
-            f"Found by: {', '.join(sources)}", "",
+            f"Recorded {len(items)} time(s) across {len(books)} book(s).", extra, "",
             f"Example - {ex['book']} ({ex['target']})",
             f"Current: {Q(ex['current'])}", f"Issue: {ex['details']}",
             f"Suggested fix: {Q(ex['fix'])}", "",
@@ -193,7 +199,10 @@ def feedback(f: dict) -> str:
             lines += [f"Sentence {n} ({tgt}) - {f['type']}",
                       f"Bank answer: {Q(ctx.get('answer'))}"]
     elif f["sheet"] == "Vocab":
-        lines += [f"Entry {n}: {Q(ctx.get('word'))} ({ctx.get('pos') or '-'})",
+        # The global word id, so the fixer edits the entry this book is actually
+        # linked to rather than another book's word of the same spelling.
+        wid = f" [word #{ctx['word_id']}]" if ctx.get("word_id") else ""
+        lines += [f"Entry {n}: {Q(ctx.get('word'))} ({ctx.get('pos') or '-'}){wid}",
                   f"Definition: {Q(ctx.get('definition'))}"]
         if ctx.get("sentence"):
             lines.append(f"Story sentence: {Q(ctx['sentence'])}")
@@ -212,8 +221,6 @@ def feedback(f: dict) -> str:
             lines.append(f"Main character(s): {ctx['main_character']}")
     lines += ["", f"Current: {Q(f['current'])}", f"Issue: {f['details']}",
               f"Suggested fix: {Q(f['fix'])}"]
-    if f.get("source", "AI") != "AI":
-        lines.append(f"Found by: {f['source']}")
     return "\n".join(lines)
 
 
@@ -259,7 +266,67 @@ def render_recurring(data: list[dict], path) -> pathlib.Path:
     return pathlib.Path(path)
 
 
-def render_by_type(data: list[dict], path) -> pathlib.Path:
+VC_COLS = [("Book", 34), ("Book ID", 11), ("word_id", 10), ("current_word", 20),
+           ("fixed_word", 20), ("current_pos", 13), ("fixed_pos", 13),
+           ("current_def", 52), ("fixed_def", 52), ("current_kor", 34),
+           ("fixed_kor", 34), ("current_vie", 38), ("fixed_vie", 38),
+           ("Error Types", 22), ("Details", 74)]
+
+
+def _vocab_sheet(wb, name: str, at: int, heading: str, note: str, rows: list[dict],
+                 titles: dict) -> None:
+    ws = wb.create_sheet(name, at)
+    ws.cell(1, 1, heading).font = Font(bold=True, size=12)
+    ws.cell(2, 1, note)
+    for c, (h, w) in enumerate(VC_COLS, 1):
+        cell = ws.cell(4, c, h)
+        cell.font, cell.fill, cell.alignment = Font(bold=True), HDR_FILL, TOP
+        ws.column_dimensions[L(c)].width = w
+    for i, r in enumerate(rows):
+        values = [r["book_names"], r["book_ids"], r["id"], r["word"], r["fixed_word"],
+                  r["pos"], r["fixed_pos"], r["definition"], r["fixed_def"],
+                  r["kor"], r["fixed_kor"], r["vie"], r["fixed_vie"],
+                  ", ".join(r["types"]), vocab_changes.details(r, titles)]
+        for c, v in enumerate(values, 1):
+            ws.cell(5 + i, c, v).alignment = TOP
+    ws.freeze_panes = "C5"
+    ws.auto_filter.ref = f"A4:{L(len(VC_COLS))}{4 + len(rows)}"
+
+
+def render_vocab_changes(wb, data: list[dict], uses: dict, titles: dict,
+                         glossary: dict | None = None) -> int:
+    """Every change wanted to the global vocabulary entries, on two sheets.
+
+    Entries that one edit can serve sit on the first sheet, one row each. Entries whose
+    books mean different things by the same word cannot be edited in one go, so they get
+    their own sheet: each row there is one sense, and acting on it means creating a
+    separate word entry rather than editing the shared one.
+    """
+    rows = vocab_changes.build_rows(data, uses, glossary)
+    for r in rows:
+        r["book_names"] = "; ".join(titles.get(b, b) for b in r["books"])
+        r["book_ids"] = ", ".join(r["books"])
+    single = [r for r in rows if not r["split"]]
+    split = [r for r in rows if r["split"]]
+    _vocab_sheet(wb, "Vocab Changes", 1, "Vocabulary changes, one row per word entry",
+                 f"{len(single)} word entries, one edit each. A blank fixed_* cell means "
+                 f"that field needs no change. Entries whose books disagree about the "
+                 f"meaning are not here -- see the 'Vocab Changes - Split' sheet.",
+                 single, titles)
+    _vocab_sheet(wb, "Vocab Changes - Split", 2,
+                 "Vocabulary entries used in more than one sense",
+                 f"{len(split)} rows covering {len({r['word_id'] for r in split})} word "
+                 f"entries. Each id is suffixed A, B, C ... one row per sense. These "
+                 f"cannot be fixed by editing the shared entry: split it into separate "
+                 f"entries and relink each book to the right one. Rows with no suggested "
+                 f"fix are senses nobody flagged that the other row's fix would break.",
+                 split, titles)
+    return len(rows)
+
+
+def render_by_type(data: list[dict], path, uses: dict | None = None,
+                   titles: dict | None = None,
+                   glossary: dict | None = None) -> pathlib.Path:
     """One row per logged type. Only "Other" is split further, since it is a catch-all."""
     groups = collections.defaultdict(list)
     for f in data:
@@ -272,14 +339,17 @@ def render_by_type(data: list[dict], path) -> pathlib.Path:
         sheet_key, ty, code = k
         items = groups[k]
         title = ty if code is None else f"Other - {BY_CODE[code][4]}"
-        tab = (f"{sheet_key} {ty}" if code is None
-               else f"{sheet_key} Other - {OTHER_SHORT.get(code, code)}")[:31]
+        name = TAB_NAME.get(sheet_key, sheet_key)
+        tab = (f"{name} {ty}" if code is None
+               else f"{name} Other - {OTHER_SHORT.get(code, code)}")[:31]
         seen[tab] = seen.get(tab, 0) + 1
         if seen[tab] > 1:
             tab = f"{tab[:28]}~{seen[tab]}"
         kinds = sorted({BY_CODE[f["kind"]][4] for f in items})
         entries.append((title, "Covers: " + "; ".join(kinds), tab, items, k))
     _summary(wb, "Errors by Type", entries)
+    if uses is not None:
+        render_vocab_changes(wb, data, uses, titles or {}, glossary)
     for title, extra, tab, items, _ in entries:
         _detail_sheet(wb, tab, f"{items[0]['sheet']} - {title}", items)
     wb.save(path)

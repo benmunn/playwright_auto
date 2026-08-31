@@ -55,6 +55,14 @@ sentence rather than letting them look verified.
 Vocab rows are wide — a book's word list runs to about twenty entries, not the eight the
 Word Accuracy Check activity used to expose — so keep Vocab batches small.
 
+**Vocab entries are shared between books, and their translations are not in this sheet.**
+The word, part of speech and definition belong to a global word entry that any number of
+books link to; only the story sentence is this book's. The same entry also carries a
+Korean and a Vietnamese definition that the workbook does not hold. Judge what is in the
+row and leave the translations alone — they are reviewed once per entry on the
+**Vocab Changes** sheet of the by-type report, not once per book that happens to use the
+word. See `reference/error-types.md`.
+
 A full pass over a 253-book workbook is several thousand judgment calls. Tell the user the
 scale up front and agree the scope rather than silently starting a job that runs for hours.
 

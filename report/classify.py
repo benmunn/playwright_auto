@@ -20,6 +20,8 @@ RULES = [
  ("W13","Vocab","Spacing",None,"Missing, doubled or zero-width space in an entry","Vocab spacing"),
  ("W14","Vocab","Capitalization",None,"Capitalization error in an entry","Vocab capitalization"),
  ("W15","Vocab","Other",None,"Factual error or wrong content in an entry","Vocab factual error"),
+ ("W19","Vocab","Spelling",None,"The vocabulary word itself is misspelled","Vocab misspelled word"),
+ ("W20","Vocab","Wrong Entry",None,"The entry is for a different word or sense than the book uses","Vocab wrong entry"),
 
  # The story sentence is authored beside the word but never shown to students, so its
  # faults are split out from the rest of the Vocab entry rather than mixed in with them.

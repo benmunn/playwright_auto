@@ -103,8 +103,13 @@ SHEETS: dict[str, dict] = {
         # stop, a garbled clause -- as opposed to a fault the sentence reveals in the
         # definition. Students never see SENT, so these are lower priority than the
         # rest and worth being able to filter out.
+        # "Spelling" is the word tile itself being misspelled, which is not a fault in
+        # the definition and not something the fixer edits in the same place.
+        # "Wrong Entry" is the whole entry belonging to a different word or sense than
+        # the book uses -- broader than "Part of Speech", which is only the tag.
         "types": (*COMMON, "Part of Speech", "Wrong Sense", "Lack of Context",
-                  "Answer Given", "Too Hard", "Story Sentence", "Other"),
+                  "Answer Given", "Too Hard", "Story Sentence", "Spelling",
+                  "Wrong Entry", "Other"),
     },
     "TMC": {
         "unit": ("Q", "AnsA", "AnsB", "AnsC", "AnsD", "Correct"),

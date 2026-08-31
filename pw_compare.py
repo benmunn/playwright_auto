@@ -36,9 +36,9 @@ PAGES = {"PWAC": "picture-word-accuracy-check", "PWM": "picture-word-match"}
 WORD_CELL, POS_CELL, DEF_CELL = 1, 2, 3
 MISSING_MARKER = "Activity not found"
 
-HEADERS = ["id", "Book", "Extra Word", "Part of Speech", "Definition",
+HEADERS = ["id", "Book", "Extra Word", "Word ID", "Part of Speech", "Definition",
            "Words in PWAC", "Words in PWM", "Note"]
-WIDTHS = [9, 30, 24, 14, 52, 13, 12, 34]
+WIDTHS = [9, 30, 24, 9, 14, 52, 13, 12, 34]
 HDR_FILL = PatternFill("solid", start_color="FFD9E1F2")
 TOP = Alignment(wrap_text=True, vertical="top")
 
@@ -189,8 +189,20 @@ def write() -> None:
     from openpyxl import load_workbook
 
     import manual_qa
+    import word_ids
 
     sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+    # The extra words are global words too, so give them the same id the Vocab sheet
+    # carries -- without it there is no way to tell which sense of the word is meant.
+    tiers = (word_ids.build_index(word_ids.load_global())
+             if word_ids.CACHE.exists() else None)
+
+    def word_id(item: dict) -> str:
+        if not tiers:
+            return ""
+        wid, _, _ = word_ids.resolve(item["word"], item["definition"], tiers,
+                                     item["pos"])
+        return wid or ""
     cache = load_cache()
     if not cache:
         sys.exit(f"{CACHE} is empty -- run with --scrape first.")
@@ -215,7 +227,7 @@ def write() -> None:
             if pwm is None:
                 totals["pwac only"] += 1
                 row = ws.max_row + 1
-                for c, v in enumerate([bid, titles.get(bid, ""), "", "", "",
+                for c, v in enumerate([bid, titles.get(bid, ""), "", "", "", "",
                                        len(pwac), "-",
                                        "This book has a Picture-Word Accuracy Check "
                                        "but no Picture-Word Match."], 1):
@@ -227,8 +239,8 @@ def write() -> None:
                 for item in pwm:
                     row = ws.max_row + 1
                     for c, v in enumerate([bid, titles.get(bid, ""), item["word"],
-                                           item["pos"], item["definition"],
-                                           "-", len(pwm),
+                                           word_id(item), item["pos"],
+                                           item["definition"], "-", len(pwm),
                                            "This book has no Picture-Word Accuracy "
                                            "Check at all, so every Picture-Word Match "
                                            "word is unchecked."], 1):
@@ -243,8 +255,8 @@ def write() -> None:
                     continue
                 row = ws.max_row + 1
                 for c, v in enumerate([bid, titles.get(bid, ""), item["word"],
-                                       item["pos"], item["definition"],
-                                       len(pwac), len(pwm),
+                                       word_id(item), item["pos"],
+                                       item["definition"], len(pwac), len(pwm),
                                        "In Picture-Word Match but not in Picture-Word "
                                        "Accuracy Check."], 1):
                     ws.cell(row, c, v).alignment = TOP

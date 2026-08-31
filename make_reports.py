@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import json
 import re
 import sys
 from pathlib import Path
@@ -99,6 +100,79 @@ def load_flat_findings(wb, titles: dict[str, str]) -> list[dict]:
     return out
 
 
+def load_glossary() -> dict[str, dict]:
+    """The global word record for each id, which is what carries the translations.
+
+    Absent cache is not fatal: the report still builds, the translation columns are just
+    empty, and the run says so rather than failing.
+    """
+    import word_ids
+
+    if not word_ids.CACHE.exists():
+        print(f"!! {word_ids.CACHE} is missing -- the translation columns will be blank. "
+              f"Run: uv run python word_ids.py --scrape")
+        return {}
+    glossary = {w["id"]: w for w in word_ids.load_global()}
+    if not any("kor" in w for w in glossary.values()):
+        print(f"!! {word_ids.CACHE} predates the translation columns -- re-scrape to "
+              f"fill them.")
+    return glossary
+
+
+def load_word_uses(path: Path) -> dict[str, list[dict]]:
+    """word id -> every book that links to it, flagged or not.
+
+    The findings alone only show the entries somebody complained about; deciding whether
+    one edit can serve every book needs the quiet uses too.
+    """
+    ws = load_workbook(path, data_only=True)["Vocab"]
+    hdr = {str(ws.cell(1, c).value).strip(): c
+           for c in range(1, ws.max_column + 1) if ws.cell(1, c).value}
+    out: dict[str, list[dict]] = collections.defaultdict(list)
+    for rn in range(2, ws.max_row + 1):
+        bid = ws.cell(rn, hdr["id"]).value
+        if bid is None:
+            continue
+        bid = str(int(bid)) if isinstance(bid, float) else str(bid).strip()
+        for s in range(1, 26):
+            if f"W{s}" not in hdr:
+                break
+            cell = lambda name: str(ws.cell(rn, hdr[name]).value or "").strip()
+            wid = ws.cell(rn, hdr[f"WID{s}"]).value if f"WID{s}" in hdr else None
+            if not cell(f"W{s}") or not wid:
+                continue
+            out[str(int(wid))].append({
+                "book": bid, "word": cell(f"W{s}"), "pos": cell(f"POS{s}"),
+                "definition": cell(f"DEF{s}"), "sentence": cell(f"SENT{s}")})
+    _apply_journal(out)
+    return out
+
+
+def _apply_journal(uses: dict[str, list[dict]]) -> None:
+    """Bring the current-value columns up to date with edits already applied.
+
+    The workbook records what each entry said when it was scraped. Once word_edit.py
+    has written to the live list those columns describe the past, and anything that
+    compares them against the site -- the identity check that guards every edit --
+    reads the difference as the entry having drifted and refuses to touch it. The
+    journal is the record of what was written, so it is replayed over them here.
+    """
+    journal = Path("data/word_edits.jsonl")
+    if not journal.exists():
+        return
+    field = {"word": "word", "pos": "pos", "definition": "definition"}
+    for line in journal.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        if rec.get("status") != "saved":
+            continue
+        for use in uses.get(str(rec["word_id"]), []):
+            for f in rec.get("fields", []):
+                if f in field:
+                    use[field[f]] = rec["after"][f]
+
+
 def load_findings(path: Path, titles: dict[str, str]) -> list[dict]:
     wb = load_workbook(path, data_only=True)
     out: list[dict] = []
@@ -136,8 +210,11 @@ def load_findings(path: Path, titles: dict[str, str]) -> list[dict]:
                 elif sheet == "CC" and n:
                     ctx = {"sentence": g(rn, f"Q{n}"), "answer": g(rn, f"A{n}")}
                 elif sheet == "Vocab" and n:
+                    # WID is the global word list's id for this entry, which is what
+                    # tells two books' uses of the same spelling apart.
                     ctx = {"word": g(rn, f"W{n}"), "pos": g(rn, f"POS{n}"),
-                           "definition": g(rn, f"DEF{n}"), "sentence": g(rn, f"SENT{n}")}
+                           "definition": g(rn, f"DEF{n}"), "sentence": g(rn, f"SENT{n}"),
+                           "word_id": g(rn, f"WID{n}")}
                 elif sheet == "OEC":
                     ctx = {"main_character": g(rn, "Main_Character"),
                            "prev_text": g(rn, "Prev_Text")}
@@ -202,7 +279,8 @@ def main() -> None:
     paths = [
         render_long(data, f"{args.out_prefix}_long.xlsx"),
         render_recurring(data, f"{args.out_prefix}_recurring.xlsx"),
-        render_by_type(data, f"{args.out_prefix}_by-type.xlsx"),
+        render_by_type(data, f"{args.out_prefix}_by-type.xlsx",
+                       load_word_uses(args.workbook), titles, load_glossary()),
     ]
     print(f"\n{len(data)} finding(s) across {len({f['book_id'] for f in data})} book(s)")
     print("by source :", dict(collections.Counter(f["source"] for f in data)))
@@ -220,6 +298,11 @@ def main() -> None:
             ws = wb[name]
             idx = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)
                    if ws.cell(4, c).value}
+            # A finding detail sheet is one with a Field column. The consolidated vocab
+            # sheets carry a Book ID too, but their rows are word entries, not findings,
+            # so counting them here would break the very check this performs.
+            if "Field" not in idx:
+                continue
             for r in range(5, ws.max_row + 1):
                 cell = lambda h: ("" if idx.get(h) is None
                                   or ws.cell(r, idx[h]).value is None

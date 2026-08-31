@@ -77,6 +77,112 @@ to skip the colouring.
 `highlight_changes.py --flag-books 53,65,71` paints those books' rows the same lavender
 in the reports, taking precedence over the new/renumbered colours.
 
+## The global word list
+
+Vocabulary is not book-owned. A book's word list links to entries in one global list, so
+the same entry is shared by however many books chose it — and the same spelling can exist
+several times over as separate entries. `bark` the sound a dog makes and `bark` on a tree
+are two entries, and only the id tells them apart.
+
+That matters because the word, its part of speech and its three definitions belong to the
+entry. Editing any of them changes every book linked to it at once.
+
+[word_ids.py](word_ids.py) walks the whole list and matches each vocabulary entry in the
+workbook to the id it came from:
+
+```bash
+uv run python word_ids.py --scrape          # fill data/global_words.json, resumable
+uv run python word_ids.py --match           # report how the two sides line up
+uv run python word_ids.py --match --write   # add WID1..WID25 to the Vocab sheet
+```
+
+Walking the list costs 284 page loads against roughly four thousand for one search per
+word, it can be re-matched without touching the server again, and it makes the near
+misses visible instead of silently resolving them.
+
+Matching runs in tiers, strictest first, and each entry records the tier that resolved it
+so the weak ones can be audited:
+
+| Tier | Resolves on |
+|---|---|
+| 1 | word + definition, exactly |
+| 2 | word + definition, with the part of speech breaking a tie |
+| 3 | word + definition ignoring case and punctuation |
+| 4 | word, where one definition is the start of the other |
+| 5 | word alone, when the list holds only one entry with that spelling |
+
+The tie-break in tier 2 is a lookup rather than a guess: the workbook's part of speech was
+scraped from the same record, and the list holds 522 word-and-definition pairs twice, all
+but 15 of them filed under two different parts of speech. An entry that stays ambiguous
+gets no id at all and is written to `data/word_id_unresolved.json`, because an arbitrary
+id here is exactly the confusion the ids exist to remove.
+
+The scrape also records the **Korean and Vietnamese definitions**, which live on the same
+list rows. They are read here rather than from the per-word edit form for the same reason
+as everything else: 284 pages against several thousand.
+
+## Error reports
+
+[make_reports.py](make_reports.py) turns a QA'd workbook into three views of the same
+findings, plus a consistency check that all three hold identical rows:
+
+```bash
+uv run python make_reports.py --workbook data/2plus_check.xlsx     --out-prefix references/0820_error-reports
+```
+
+| View | Shape |
+|---|---|
+| `_long` | one row per finding, in the RnD x TFT feedback layout |
+| `_recurring` | grouped by recurring kind, each kind with its own sheet |
+| `_by-type` | grouped by the type each was logged under |
+
+The by-type workbook carries two extra sheets that are organised by word rather than by
+book, because a fix to a shared entry is one edit no matter how many books wanted it:
+
+- **Vocab Changes** — one row per global word entry, with `current_` and `fixed_` columns
+  for the word, part of speech, English definition and both translations. A blank `fixed_`
+  cell means that field needs no change.
+- **Vocab Changes - Split** — entries whose books mean genuinely different things by the
+  same word. Ids are suffixed `A`, `B`, `C`, one row per sense. These cannot be fixed by
+  editing the shared entry: it has to be split and each book relinked. Rows with no
+  suggested fix are senses nobody flagged that the other row's fix would break.
+
+Which entries split is a judgment about meaning, not a rule about text — two QA passes
+routinely word the same fix differently — so the decisions are recorded by hand in
+[report/vocab_changes.py](report/vocab_changes.py) alongside the reading that produced
+them. Translation corrections live the same way, in
+[report/translations.py](report/translations.py).
+
+## Applying the fixes
+
+[word_edit.py](word_edit.py) is the only script here that writes. Everything else reads,
+where a mistake costs a re-run; a mistake here overwrites the live word list.
+
+```bash
+uv run python word_edit.py                     # dry run: says what it would change
+uv run python word_edit.py --apply --limit 5   # actually save those five
+uv run python word_edit.py --apply             # the whole sheet
+```
+
+It reads the **Vocab Changes** sheet and edits `/words/{id}/edit`. The split sheet is
+refused outright, and so is any id that appears on it: those rows need new entries, and
+editing the shared one in place is the exact mistake that sheet exists to prevent.
+
+| Guard | What it prevents |
+|---|---|
+| Dry run is the default | Saving something nobody has read yet |
+| The form is checked first | Writing to an entry that has been edited since the report was generated — the fix was written against text that is gone |
+| Filled fields are read back | A fill that lands in the box before the page wires up its handlers, which registers nowhere and would otherwise save half an edit |
+| The save button must enable | The form only allows a save once something really changed |
+| Every word is journalled | No record of what was altered; `data/word_edits.jsonl` holds each field's before and after, and makes a run resumable |
+| Saves are verified | A save that silently did not take |
+
+Saving is heavier than reading, so it waits 5s between words on top of the usual
+throttle, and stops after three consecutive failures like every other script here.
+
+The image, the audio, and any translation the sheet has no replacement for are never
+touched.
+
 ## Setup
 
 ```bash

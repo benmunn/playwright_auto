@@ -89,13 +89,30 @@ SUBS = [
  (r"\bcopula\b", "linking verb"),
 ]
 
+# Details quote the book's own words, and those are evidence rather than prose to be
+# tidied: rewriting inside them turned "a large circular structure" into "a large
+# explains itself in a circle structure", because a rule meant for a circular
+# definition fired on the book's use of the word.
+QUOTED = re.compile('[“"][^”"]*[”"]')
+
+
 def plain(text: str) -> str:
     if not text:
         return text
-    out = text
-    for pat, rep in SUBS:
-        out = re.sub(pat, rep, out, flags=re.I)
-    return re.sub(r"\s{2,}", " ", out).strip()
+    chunks, last = [], 0
+    for m in QUOTED.finditer(text):
+        chunks.append((text[last:m.start()], True))
+        chunks.append((m.group(), False))          # quoted: leave exactly as written
+        last = m.end()
+    chunks.append((text[last:], True))
+
+    out = []
+    for chunk, rewrite in chunks:
+        if rewrite:
+            for pat, rep in SUBS:
+                chunk = re.sub(pat, rep, chunk, flags=re.I)
+        out.append(chunk)
+    return re.sub(r"\s{2,}", " ", "".join(out)).strip()
 
 BANNED = re.compile(r"\bheadword|\bgloss|\breferent|\bspurious|\bappend|\bgerund|\bantecedent"
                     r"|\bparse\b|\binflection\b|comma splice|\brun-on\b|\bcopula\b|\bappositive\b"

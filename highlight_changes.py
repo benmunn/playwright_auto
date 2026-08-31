@@ -49,7 +49,10 @@ def detail_rows(path: Path):
         ws = wb[name]
         idx = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)
                if ws.cell(4, c).value}
-        if "Book ID" not in idx:
+        # Field marks a finding detail sheet; the consolidated vocab sheets have a
+        # Book ID but hold word entries rather than findings, so they are not
+        # comparable against the baseline row for row.
+        if "Book ID" not in idx or "Field" not in idx:
             continue
         for r in range(5, ws.max_row + 1):
             cell = lambda h: norm(ws.cell(r, idx[h]).value) if h in idx else ""
@@ -109,7 +112,9 @@ def main() -> None:
             ws = wb[name]
             idx = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)
                    if ws.cell(4, c).value}
-            if "Book ID" not in idx:
+            # Same test as detail_rows: only finding sheets have a Field column, and
+            # only they are comparable against the baseline row for row.
+            if "Book ID" not in idx or "Field" not in idx:
                 continue
             for r in range(5, ws.max_row + 1):
                 cell = lambda h: norm(ws.cell(r, idx[h]).value) if h in idx else ""

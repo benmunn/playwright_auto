@@ -199,6 +199,18 @@ BLURBS: dict[tuple, tuple[str, list[str], str, str]] = {
         "alive — living; not dead",
         "alive — having life; able to grow, move and breathe"),
 
+    ("Vocab", "Spelling", None): (
+        "The word tile itself is misspelled",
+        ["a letter missing or wrong in the word students see"],
+        "aike",
+        "alike"),
+    ("Vocab", "Wrong Entry", None): (
+        "The entry is for a different word or sense than the book uses",
+        ["the tag and definition belong to a word spelled the same way",
+         "the entry describes a sense the story never uses"],
+        "bark(ing), verb — to make the sharp, loud sound of a dog",
+        "bark, noun — the hard outer covering of a tree"),
+
     # ---- Book word list -------------------------------------------------------------
     ("Vocab", "Story Sentence", None): (
         "Faults in the story sentence on the book's word list (students never see this "

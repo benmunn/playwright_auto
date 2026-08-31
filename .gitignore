@@ -15,3 +15,8 @@ wheels/
 
 # Failure screenshots
 debug/
+
+# Scraped book content, tracking spreadsheets and generated error reports.
+# This repository is public and these hold licensed material, so they stay local.
+data/
+references/
