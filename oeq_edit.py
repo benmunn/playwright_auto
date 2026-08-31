@@ -79,6 +79,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
+import edit_common as ec
 import make_reports
 import manual_qa
 import rs_scrape as rs
@@ -259,35 +260,6 @@ def question_count(page) -> int:
     return page.evaluate(COUNT_JS)
 
 
-class Mutation:
-    """Catches what the save mutation actually answered.
-
-    The endpoint replies HTTP 200 whether it saved or not, putting the failure in the
-    body, so a rejected save looks exactly like a successful one from the outside. The
-    vocabulary run learned this the expensive way; here it is read from the start.
-    """
-
-    def __init__(self, page):
-        self.errors: list[str] = []
-        page.on("response", self._on)
-
-    def _on(self, response) -> None:
-        req = response.request
-        if req.method != "POST" or "graphql" not in response.url:
-            return
-        try:
-            body = response.json()
-        except Exception:                                          # noqa: BLE001
-            return
-        for err in (body or {}).get("errors") or []:
-            if "OpenEndedQuestions" in str(err.get("path", "")):
-                self.errors.append(str(err.get("message", "")).strip())
-
-    def take(self) -> list[str]:
-        out, self.errors = self.errors, []
-        return out
-
-
 def update_button(page):
     return page.locator("button", has_text=UPDATE_TEXT).first
 
@@ -298,29 +270,19 @@ def open_book(page, url: str) -> None:
     page.wait_for_timeout(SETTLE_MS)
 
 
-def same(a: str, b: str) -> bool:
-    """Exact once the outer whitespace is gone.
-
-    Deliberately stricter than norm(): several of these fixes correct spacing and
-    punctuation and nothing else, and a comparison that collapsed whitespace would call
-    such an edit verified without it ever having been made.
-    """
-    return (a or "").strip() == (b or "").strip()
-
-
 def fill_question(page, spot: dict, text: str) -> bool:
     """Type the replacement in and confirm the form took it."""
     box = page.locator("textarea").nth(spot["textarea"])
     box.fill("")
     box.fill(text)
     page.wait_for_timeout(400)
-    if same(box.input_value(), text):
+    if ec.same(box.input_value(), text):
         return True
     # One retry: the first fill can land before the handlers are wired.
     box.fill("")
     box.fill(text)
     page.wait_for_timeout(800)
-    return same(box.input_value(), text)
+    return ec.same(box.input_value(), text)
 
 
 # --------------------------------------------------------------------------------------
@@ -372,7 +334,7 @@ def run(args) -> None:
         page.set_default_navigation_timeout(rs.NAV_TIMEOUT_MS)
         rs.ensure_logged_in(page, *rs.credentials())
         rs.save_session(context)
-        mutation = Mutation(page)
+        mutation = ec.Mutation(page, "OpenEndedQuestions")
 
         try:
             for i, book in enumerate(order, 1):
@@ -410,17 +372,21 @@ def run(args) -> None:
                     if not spot:
                         problems.append(f"{target}: no question {q['n']} on the page")
                         continue
+                    # Part of this list has already been fixed by hand. A page that
+                    # now reads exactly what the report asked for is finished, not a
+                    # conflict, and saying so keeps the real mismatches visible. Asked
+                    # before the comparison with the report, because a fix differing
+                    # only in the shape of its quotes normalises equal to the text it
+                    # replaces, and the box would then be refilled with what it already
+                    # says.
+                    if ec.same(spot["value"], q["fix"]):
+                        settled.append(target)
+                        note = ("already reads the suggested text"
+                                + (" (its audio is still in place)"
+                                   if spot["hasAudio"] else ""))
+                        print(f"{label}: {target} {note}")
+                        continue
                     if norm(spot["value"]) != norm(q["current"]):
-                        # Part of this list has already been fixed by hand. A page that
-                        # now reads exactly what the report asked for is finished, not a
-                        # conflict, and saying so keeps the real mismatches visible.
-                        if same(spot["value"], q["fix"]):
-                            settled.append(target)
-                            note = ("already reads the suggested text"
-                                    + (" (its audio is still in place)"
-                                       if spot["hasAudio"] else ""))
-                            print(f"{label}: {target} {note}")
-                            continue
                         problems.append(
                             f"{target}: the page reads {spot['value'][:60]!r}, but the "
                             f"report recorded {q['current'][:60]!r} -- edited since")
@@ -583,7 +549,7 @@ def run(args) -> None:
                     for t in applied:
                         q = book["questions"][t]
                         spot = find_question(page, q["n"])
-                        if not spot or not same(spot["value"], q["fix"]):
+                        if not spot or not ec.same(spot["value"], q["fix"]):
                             got = spot["value"] if spot else "<gone>"
                             wrong.append(f"{t} reads {got[:60]!r}")
                         elif spot["hasAudio"] and record[t].get("audio_removed"):

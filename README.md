@@ -238,6 +238,65 @@ Of the 96 books with a flagged question, a dry run currently reports 68 to chang
 already carrying the suggested text, and 12 rewritten on the site into something other
 than what we proposed -- those last are left alone, since the live wording reads well.
 
+## Rewriting the context-clue and multiple-choice items
+
+`activity_edit.py` covers both, sharing the guards with the open-ended-question run
+through `edit_common.py` -- the resume logic, the exact-comparison rule and the reader
+that pulls a refusal out of a 200 response all live there now, so the three activities
+cannot drift apart the way the report generators once did.
+
+```bash
+uv run python activity_edit.py CC          # dry run
+uv run python activity_edit.py TMC --apply # save
+```
+
+**Context clue** is the simpler of the two: ten cloze sentences, each a textarea under a
+heading `Item N`, and a finding on `Q4` means the fourth. The heading is what is trusted.
+Its position among the textareas is checked against it as well, and a disagreement is
+reported rather than resolved, since the two only ever disagree if the page is not what
+the script thinks it is.
+
+**Text multiple choice is not laid out the way the field names suggest.** The answers
+are `input[placeholder="Answer text"]`, not textareas, and carry no heading of their
+own, so `AnsC4` is the third answer input inside `Question 4`'s block. The block itself
+is found by walking up from the heading to the nearest ancestor holding an answer input,
+and it is checked for holding exactly one question textarea rather than assumed to.
+
+Two things about TMC need a person rather than a script:
+
+- **Twelve `AnsD` findings ask for an option that does not exist.** Those questions have
+  three answers, so the fix would add a fourth -- which also means saying whether the new
+  option is a distractor or the right answer. The report does not record that, and
+  guessing makes a wrong answer correct, so they are held back and listed.
+- **Book 2841's `AnsAll4`** is not a rewrite: the question and all four options belong to
+  a different book.
+
+An `AnsAll` finding quotes all four options in one cell and is expanded into one edit per
+letter, skipping the letters that did not change -- so a punctuation fix on two options
+does not rewrite the other two. Four of the fifteen write the options on a single line
+rather than one per line, and splitting on newlines alone would push all four into
+answer A.
+
+Where the two stand as of the last dry run:
+
+| | context clue | multiple choice |
+|---|---|---|
+| books with a flagged field | 150 | 231 |
+| would change | 149 | 8 |
+| already carry the suggested text | 0 | 220 |
+| skipped, edited into something else | 1 | 3 |
+| held for a person | 14 findings with no fix | 12 missing options, 1 wrong-book question |
+
+Multiple choice is nearly done already -- 220 of its 231 books have had the fix applied
+by hand since the report was written. Context clue has had almost none of it.
+
+One check worth keeping: a box that already holds the suggested text is recognised as
+finished **before** its text is compared with what the report quoted. `norm()` folds
+straight and curly quotes together, so a punctuation fix whose only change is the shape
+of a quotation mark normalises equal to the text it replaces. Asking the questions the
+other way round refilled five books with what they already said and then reported them
+as saving nothing.
+
 ## Re-scraping after the fixes have been applied
 
 `word_edit.py` writes to the global word list, so once it has run the workbook and the

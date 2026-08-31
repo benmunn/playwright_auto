@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from openpyxl import Workbook  # noqa: E402
 
+import activity_edit as ae  # noqa: E402
+import edit_common as ec  # noqa: E402
 import oeq_edit as oe  # noqa: E402
 import word_edit as we  # noqa: E402
 import word_ids as W  # noqa: E402
@@ -356,8 +358,8 @@ def a_book_saved_for_one_question_still_owes_the_other():
 def a_spacing_fix_is_compared_exactly():
     """Several fixes correct spacing and nothing else. Collapsing whitespace before
     comparing would call such an edit verified without it ever being made."""
-    assert not oe.same("what did you?  If no", "what did you? If no")
-    assert oe.same(" trailing ", "trailing")
+    assert not ec.same("what did you?  If no", "what did you? If no")
+    assert ec.same(" trailing ", "trailing")
 
 
 @case
@@ -389,7 +391,7 @@ def a_refused_save_is_read_out_of_the_body():
             self.fn = fn
 
     page = Page()
-    m = oe.Mutation(page)
+    m = ec.Mutation(page, "OpenEndedQuestions")
     page.fn(Resp({"errors": [{"message": "ELEVENLABS_API_KEY is not set",
                               "path": ["updateOpenEndedQuestionsContent"]}],
                   "data": None}))
@@ -400,6 +402,100 @@ def a_refused_save_is_read_out_of_the_body():
     page.fn(Resp({"data": {"updateOpenEndedQuestionsContent": {"id": 1}}}))
     page.fn(Resp({"errors": [{"message": "nope", "path": ["wordListByBook"]}]}))
     assert m.take() == []
+
+
+# --------------------------------------------------------------------------------------
+# Context clue and text multiple choice
+# --------------------------------------------------------------------------------------
+
+
+@case
+def a_field_name_maps_to_the_right_box():
+    """AnsC4 is the third answer of question 4, and Q4 is that question's own text.
+    Getting the letter-to-slot step wrong rewrites a different answer."""
+    assert ae.parse_target("Q4") == (4, 0)
+    assert ae.parse_target("AnsA4") == (4, 1)
+    assert ae.parse_target("AnsC4") == (4, 3)
+    assert ae.parse_target("AnsD10") == (10, 4)
+    # AnsAll is expanded before it gets here, and nothing else is a field.
+    assert ae.parse_target("AnsAll4") is None
+    assert ae.parse_target("Main_Character") is None
+    assert ae.parse_target("A9") is None
+
+
+@case
+def all_four_options_split_whether_or_not_they_are_on_separate_lines():
+    """Four of the fifteen AnsAll cells put the options on one line. Splitting on
+    newlines alone yields a single option and pushes all four into answer A."""
+    lines = "\n".join(["A. one", "B. two", "C. three", "D. four"])
+    flat = "A. one B. two C. three D. four"
+    for text in (lines, flat):
+        got = ae.split_options(text)
+        assert got == {"A": "one", "B": "two", "C": "three", "D": "four"}, got
+    # A cell that is prose rather than options yields nothing, which is what makes the
+    # book-2841 finding fall out rather than be typed in.
+    assert set(ae.split_options("Replace the question and all four options.")) != set("ABCD")
+
+
+@case
+def an_ansall_finding_only_rewrites_the_options_that_changed():
+    """A punctuation fix on two options must not rewrite the other two."""
+    import make_reports
+
+    finding = {"sheet": "TMC", "prefix": "AnsAll", "book_id": "9", "book": "b",
+               "target": "AnsAll8", "n": 8, "type": "Punctuation",
+               "current": "\n".join(["A. one.", "B. two.", "C. three", "D. four"]),
+               "fix": "\n".join(["A. one", "B. two", "C. three", "D. four"])}
+    real = make_reports.load_findings
+    make_reports.load_findings = lambda path, titles: [finding]
+    try:
+        books, _ = ae.load_edits(ae.ACTIVITIES["TMC"],
+                                 [pathlib.Path("tests/test_logic.py")], {})
+    finally:
+        make_reports.load_findings = real
+    fields = books["9"]["fields"]
+    assert set(fields) == {"AnsA8", "AnsB8"}, set(fields)
+    assert fields["AnsA8"]["fix"] == "one"
+    assert fields["AnsA8"]["slot"] == 1
+    assert fields["AnsB8"]["slot"] == 2
+
+
+@case
+def a_finding_with_no_suggested_fix_is_never_written():
+    """Thirteen context-clue findings say what is wrong without saying what to put
+    there. Writing an empty box would erase the item."""
+    import make_reports
+
+    finding = {"sheet": "CC", "prefix": "Q", "book_id": "9", "book": "b",
+               "target": "Q1", "n": 1, "type": "Grammar", "current": "text",
+               "fix": "   ", "details": "grammar problem"}
+    real = make_reports.load_findings
+    make_reports.load_findings = lambda path, titles: [finding]
+    try:
+        books, notes = ae.load_edits(ae.ACTIVITIES["CC"],
+                                     [pathlib.Path("tests/test_logic.py")], {})
+    finally:
+        make_reports.load_findings = real
+    assert books == {}, books
+    assert any("no suggested fix" in n for n in notes), notes
+
+
+@case
+def the_hand_written_decisions_are_reachable():
+    """CHOSEN is keyed by activity as well as book and field; keying it by book alone
+    would let a context-clue decision answer for a multiple-choice one."""
+    for key in ae.CHOSEN:
+        assert key[0] in ae.ACTIVITIES, key
+        assert ae.parse_target(key[2]) is not None, key
+    for key in ae.UNUSABLE:
+        assert key[0] in ae.ACTIVITIES, key
+
+
+@case
+def a_book_saved_for_one_field_still_owes_the_others():
+    book = {"book_id": "9", "book": "b", "fields": {"Q1": {}, "AnsC2": {}}}
+    assert set(ae.outstanding(book, {"9": {"Q1"}})["fields"]) == {"AnsC2"}
+    assert ae.outstanding(book, {"9": {"Q1", "AnsC2"}})["fields"] == {}
 
 
 if __name__ == "__main__":
