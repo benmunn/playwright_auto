@@ -10,6 +10,7 @@ exist. Columns are located by header name, and only empty cells are written.
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import time
@@ -796,13 +797,60 @@ def save_workbook(wb) -> None:
         )
 
 
+def parse_args(argv=None) -> argparse.Namespace:
+    """Command line over the module constants above.
+
+    This exists because the script had none. Running it with any argument at all --
+    `rs_scrape.py --help` included -- started a live scrape against whatever workbook
+    the environment happened to point at, which is how four cells were once appended to
+    a finished workbook by someone only trying to read the usage.
+    """
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--workbook", type=Path,
+                    help=f"workbook to fill (default: {WORKBOOK_PATH})")
+    ap.add_argument("--activities", help="comma-separated subset, e.g. CC,Vocab,TMC "
+                                         f"(default: {','.join(ACTIVITIES_TO_RUN)})")
+    ap.add_argument("--books", help="comma-separated book ids (default: every id in "
+                                    "the sheet)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="report every intended write and save nothing")
+    ap.add_argument("--overwrite-recorded", action="store_true",
+                    help="write into slots that already hold a value. Off by default, "
+                         "and rarely what is wanted: a value that has since changed on "
+                         "the site does not match what was recorded, so it is treated "
+                         "as new and appended into the next free slot")
+    return ap.parse_args(argv)
+
+
+def apply_args(args: argparse.Namespace) -> None:
+    global WORKBOOK_PATH, ACTIVITIES_TO_RUN, BOOK_IDS, DRY_RUN, SKIP_ALREADY_RECORDED
+    if args.workbook:
+        WORKBOOK_PATH = args.workbook
+    if args.activities:
+        keys = tuple(k.strip() for k in args.activities.split(",") if k.strip())
+        unknown = [k for k in keys if k not in ACTIVITIES]
+        if unknown:
+            raise SystemExit(f"unknown activity: {', '.join(unknown)}. "
+                             f"Choose from {', '.join(ACTIVITIES)}.")
+        ACTIVITIES_TO_RUN = keys
+    if args.books:
+        BOOK_IDS = [b.strip() for b in args.books.split(",") if b.strip()]
+    if args.dry_run:
+        DRY_RUN = True
+    if args.overwrite_recorded:
+        SKIP_ALREADY_RECORDED = False
+
+
 def main() -> None:
     # Progress must stay visible when output is piped to a log or a pager; without this
     # a long run looks hung for minutes while Python buffers its stdout.
     sys.stdout.reconfigure(line_buffering=True)
+    apply_args(parse_args())
 
     creds = credentials()
     wb = open_target_workbook()
+    print(f"Workbook: {WORKBOOK_PATH}")
+    print(f"Activities: {', '.join(ACTIVITIES_TO_RUN)}")
 
     if DRY_RUN:
         print("DRY RUN: no cells will be written and the workbook will not be saved.\n")

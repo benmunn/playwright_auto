@@ -321,11 +321,29 @@ as saving nothing.
 live list have diverged: 859 definitions currently differ. Two things follow, and
 neither is obvious from the scraper on its own.
 
+`rs_scrape.py` takes a command line now:
+
+```bash
+uv run python rs_scrape.py --workbook data/2plus_recheck.xlsx --activities CC,Vocab,TMC
+```
+
+It had none before, which meant every argument was ignored and the script simply ran --
+`rs_scrape.py --help` started a live scrape against whatever workbook `RS_WORKBOOK`
+pointed at. That is not a hypothetical: it appended four cells to a finished workbook
+for someone who only wanted to read the usage, in exactly the way described below.
+
 **A re-scrape will not reconcile them.** `rs_scrape.py` only ever writes into empty
 cells, and `SKIP_ALREADY_RECORDED` skips a book whose values are already there. Running
 it again over a populated workbook changes nothing. To pull the corrected text down, the
 Vocab data cells have to be cleared first -- and then the `Err[#]` findings beside them
 describe text that is gone, so they need re-QAing rather than re-reading.
+
+Worse than not reconciling, re-scraping a populated workbook *damages* it. Dedupe is by
+value: a question whose text has since been corrected on the site no longer matches what
+was recorded, so it is not recognised as already present and is appended into the next
+free slot. The row then holds the same question twice, once in each version, and the
+report reads the copy as a separate item. Scrape into a workbook built fresh by
+`make_template.py` instead, and keep the old one to compare against.
 
 **Clearing the word cells means re-matching the ids.** `WID[#]` is written per slot by
 `word_ids.py`, and a re-scrape can put a different word in a given slot. An id left
