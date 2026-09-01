@@ -221,6 +221,17 @@ def build_rows(findings: list[dict], uses: dict[str, list[dict]],
         if wid not in by_word and wid in uses:
             by_word[wid] = {}
 
+    # A finding on a word whose slot carries no id cannot be placed on this sheet: the
+    # sheet is keyed by the global entry, and without an id there is nothing to key it
+    # to. That happens when the workbook has not been through word_ids.py, or when a
+    # re-scrape put a new word in a slot that has not been matched yet. Dropping it here
+    # would lose it silently, so it is counted and named by the caller instead.
+    unmatched = by_word.pop("", None)
+    if unmatched:
+        print(f"  ! {sum(len(v) for v in unmatched.values())} vocabulary finding(s) on "
+              f"{len(unmatched)} book(s) have no word id and are left off the Vocab "
+              f"Changes sheet -- run word_ids.py --match --write on this workbook")
+
     rows = []
     for wid, books in sorted(by_word.items(), key=lambda kv: int(kv[0])):
         entry = (uses.get(wid) or [{}])[0]

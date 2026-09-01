@@ -19,6 +19,7 @@ RULES = [
  ("W12","Vocab","Awkward Phrasing",None,"Definition written in unnatural English","Vocab unnatural definition"),
  ("W13","Vocab","Spacing",None,"Missing, doubled or zero-width space in an entry","Vocab spacing"),
  ("W14","Vocab","Capitalization",None,"Capitalization error in an entry","Vocab capitalization"),
+ ("W21","Vocab","Punctuation",None,"Punctuation error in an entry","Vocab punctuation"),
  ("W15","Vocab","Other",None,"Factual error or wrong content in an entry","Vocab factual error"),
  ("W19","Vocab","Spelling",None,"The vocabulary word itself is misspelled","Vocab misspelled word"),
  ("W20","Vocab","Wrong Entry",None,"The entry is for a different word or sense than the book uses","Vocab wrong entry"),

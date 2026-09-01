@@ -115,6 +115,23 @@ WRONG_SENSE_CLEARED = {
     "44948", "45312", "45367", "45576", "46654", "47098", "47457", "48233", "49147",
     "49252", "49350", "49505", "49796", "49798", "49799",
 }
+# Entries the report answered with text that was itself faulty, caught by re-scraping
+# the word list and reading back what this script had written. Each is (what went in,
+# what it should have said) per field; the run expects the first on the page, so an
+# amendment applies once and is a no-op afterwards. They bypass the journal, whose whole
+# record of these words is that they are finished.
+#
+# 40121 is the one that matters: the report's fix cell began "Change the definition to:"
+# and the whole string was written, so the instruction became the definition every book
+# linked to that entry showed.
+AMENDED = {
+    "40121": {"definition": (
+        "Change the definition to: a woman who is married to a child’s father but "
+        "is not the child’s birth mother.",
+        "a woman who is married to a child’s father but is not the child’s "
+        "birth mother")},
+}
+
 PLACEHOLDER = {"word": PH_WORD, "definition": PH_DEF, "kor": PH_KOR, "vie": PH_VIE}
 
 
@@ -177,6 +194,17 @@ def load_rows(path: Path, sheet: str) -> list[dict]:
         for name, fixed, current in FIELDS:
             row[f"fixed_{name}"] = g(fixed)
             row[f"current_{name}"] = g(current)
+        amend = AMENDED.get(wid)
+        if amend:
+            # Both halves are replaced: the page holds what this script last wrote
+            # there, not what the report quoted before any of it ran.
+            for name, (was, should) in amend.items():
+                row[f"current_{name}"] = was
+                row[f"fixed_{name}"] = should
+            for name, _, _ in FIELDS:
+                if name not in amend:
+                    row[f"fixed_{name}"] = ""
+            row["amended"] = True
         if any(row[f"fixed_{n}"] for n, _, _ in FIELDS):
             rows.append(row)
     if held:
@@ -354,7 +382,9 @@ def run(args) -> None:
     if not args.redo:
         done = saved_fields()
         before = len(rows)
-        rows = [r for r in rows if not already_done(r, done)]
+        # An amendment exists because what went in was wrong, and the journal records
+        # only that it went in, so it must survive the resume filter.
+        rows = [r for r in rows if r.get("amended") or not already_done(r, done)]
         if before - len(rows):
             print(f"{before - len(rows)} word(s) already have every pending change "
                   f"written -- skipping")
