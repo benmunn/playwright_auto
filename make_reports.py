@@ -117,6 +117,24 @@ def load_glossary() -> dict[str, dict]:
     if not any("kor" in w for w in glossary.values()):
         print(f"!! {word_ids.CACHE} predates the translation columns -- re-scrape to "
               f"fill them.")
+    # The cache is what the global list said when it was scraped. Translations written
+    # since then live only in the journal, and without replaying them here the Vocab
+    # Changes sheet shows every one of them as still to do -- 635 of 636, at the point
+    # this was noticed -- when the site already holds them.
+    journal = Path("data/word_edits.jsonl")
+    if journal.exists():
+        for line in journal.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("status") != "saved":
+                continue
+            entry = glossary.get(str(rec["word_id"]))
+            if entry is None:
+                continue
+            for f in rec.get("fields", []):
+                if f in ("kor", "vie", "word", "pos", "definition"):
+                    entry[f] = rec["after"][f]
     return glossary
 
 

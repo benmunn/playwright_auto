@@ -140,7 +140,17 @@ PLACEHOLDER = {"word": PH_WORD, "definition": PH_DEF, "kor": PH_KOR, "vie": PH_V
 # --------------------------------------------------------------------------------------
 
 
-def load_rows(path: Path, sheet: str) -> list[dict]:
+def load_rows(path: Path, sheet: str, types: set[str] | None = None) -> list[dict]:
+    """Rows the sheet offers, less the ones held back.
+
+    `types`, when given, keeps only rows whose Error Types set is exactly that -- a run
+    asked for "Translation" must not pick up a row reading "Translation, Wrong Sense",
+    which the Wrong Sense hold would then decide about instead of the caller.
+
+    An "Ignore" column, if the sheet has one, is honoured: any row marked Yes is left
+    alone. The column is added by hand on the report after it is generated, so its
+    absence means nothing and its presence is a decision.
+    """
     wb = load_workbook(path, data_only=True)
     if sheet not in wb.sheetnames:
         sys.exit(f"{path} has no sheet named {sheet!r}")
@@ -173,7 +183,8 @@ def load_rows(path: Path, sheet: str) -> list[dict]:
             if v:
                 split_ids.add(str(v).rstrip("ABCDEFGHIJ"))
 
-    rows, held = [], 0
+    rows, held, ignored = [], 0, 0
+    types_wanted = {t.strip() for t in types} if types else None
     for r in range(HEADER_ROW + 1, ws.max_row + 1):
         g = lambda name: (str(ws.cell(r, hdr[name]).value or "").strip()
                           if name in hdr else "")
@@ -186,7 +197,12 @@ def load_rows(path: Path, sheet: str) -> list[dict]:
         if wid in split_ids:
             print(f"  ! row {r}: word {wid} is a split entry -- skipped")
             continue
+        if g("Ignore").strip().lower() in ("yes", "y", "true", "1"):
+            ignored += 1
+            continue
         types = [t.strip() for t in g("Error Types").split(",") if t.strip()]
+        if types_wanted is not None and set(types) != types_wanted:
+            continue
         if any(t in SKIP_TYPES for t in types) and wid not in WRONG_SENSE_CLEARED:
             held += 1
             continue
@@ -210,6 +226,8 @@ def load_rows(path: Path, sheet: str) -> list[dict]:
     if held:
         print(f"  held back {held} row(s) whose reason includes "
               f"{' or '.join(SKIP_TYPES)}")
+    if ignored:
+        print(f"  left alone {ignored} row(s) marked Ignore on the sheet")
     return rows
 
 
@@ -375,7 +393,9 @@ def wanted(row: dict, actual: dict) -> dict:
 
 def run(args) -> None:
     sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
-    rows = load_rows(args.report, args.sheet)
+    types = ({t.strip() for t in args.types.split(",") if t.strip()}
+             if args.types else None)
+    rows = load_rows(args.report, args.sheet, types)
     if args.only:
         keep = {s.strip() for s in args.only.split(",") if s.strip()}
         rows = [r for r in rows if r["word_id"] in keep]
@@ -595,6 +615,8 @@ def main() -> None:
     ap.add_argument("--sheet", default=SHEET)
     ap.add_argument("--limit", type=int, help="only handle this many words")
     ap.add_argument("--only", help="comma-separated word ids to handle")
+    ap.add_argument("--types", help="only rows whose Error Types is exactly this set, "
+                                    "e.g. Translation")
     ap.add_argument("--redo", action="store_true",
                     help="handle words whose pending changes the journal already "
                          "records as written")
